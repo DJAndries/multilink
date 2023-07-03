@@ -1,0 +1,26 @@
+[package]
+name = "sweetlinks"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+async-trait = "0.1"
+async-stream = "0.3"
+futures = { version = "0.3" }
+hyper = { version = "0.14", optional = true, features = ["http1", "stream"] }
+hyper-rustls = { version = "0.24", optional = true }
+serde = { version = "1.0", features = ["derive"] }
+serde_json = "1.0"
+thiserror = "1.0"
+tokio = { version = "1.27", optional = true, features = ["io-std", "io-util", "macros", "process", "sync"] }
+tokio-stream = "0.1"
+tower = { version = "0.4", features = ["timeout"] }
+tracing = "0.1"
+
+[features]
+jsonrpc = []
+stdio-client = ["dep:tokio", "jsonrpc"]
+stdio-server = ["dep:tokio", "jsonrpc"]
+http-client = ["dep:hyper", "hyper?/client", "dep:hyper-rustls"]
+http-server = ["dep:hyper", "hyper?/server", "hyper?/tcp"]
+
