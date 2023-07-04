@@ -4,7 +4,6 @@ use serde_json::Value;
 use crate::{
     error::SerializableProtocolError,
     jsonrpc::{JsonRpcMessage, JsonRpcRequest},
-    ProtocolError,
 };
 
 #[cfg(feature = "stdio-client")]
@@ -27,7 +26,7 @@ pub trait ResponseJsonRpcConvert<Request, Response> {
         original_request: &Request,
     ) -> Result<Option<Response>, SerializableProtocolError>;
 
-    fn into_jsonrpc_message(result: Result<Response, ProtocolError>, id: Value) -> JsonRpcMessage;
+    fn into_jsonrpc_message(response: Response, id: Value) -> JsonRpcMessage;
 }
 
 fn serialize_payload<R: Serialize>(payload: &R) -> String {

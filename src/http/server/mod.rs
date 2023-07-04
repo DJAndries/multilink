@@ -100,7 +100,7 @@ where
 {
     config: Arc<HttpServerConfig>,
     service: Timeout<S>,
-    remote_addr: Option<SocketAddr>,
+    remote_addr: SocketAddr,
     request_phantom: PhantomData<Request>,
     response_phantom: PhantomData<Response>,
 }
@@ -130,11 +130,8 @@ where
     fn call(&mut self, request: HttpRequest<Body>) -> Self::Future {
         let config = self.config.clone();
         let mut service = self.service.clone();
-        debug!(
-            "received http request from {}",
-            self.remote_addr.as_ref().unwrap()
-        );
-        let remote_addr = self.remote_addr.take().unwrap();
+        debug!("received http request from {}", self.remote_addr);
+        let remote_addr = self.remote_addr.clone();
         Box::pin(async move {
             if !config.api_keys.is_empty() {
                 let key_header = request
@@ -253,7 +250,7 @@ where
         let make_service = make_service_fn(move |conn: &AddrStream| {
             let config = config_cl.clone();
             let service = service_cl.clone();
-            let remote_addr = Some(conn.remote_addr());
+            let remote_addr = conn.remote_addr();
             async move {
                 Ok::<_, Infallible>(HttpServerConnService {
                     config,

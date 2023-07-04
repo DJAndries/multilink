@@ -73,20 +73,6 @@ where
     config: StdioClientConfig,
 }
 
-// impl<Request, Response> Clone for StdioClient<Request, Response>
-// where
-//     Request: RequestJsonRpcConvert<Request> + Send + 'static,
-//     Response: ResponseJsonRpcConvert<Request, Response> + Send + 'static,
-// {
-//     fn clone(&self) -> Self {
-//         Self {
-//             _child: self._child.clone(),
-//             to_child_tx: self.to_child_tx.clone(),
-//             config: self.config.clone()
-//         }
-//     }
-// }
-
 impl<Request, Response> Service<Request> for StdioClient<Request, Response>
 where
     Request: RequestJsonRpcConvert<Request> + Send + 'static,
@@ -183,7 +169,9 @@ where
                                         })
                                     }), request.id).into()).await,
                                     JsonRpcMessage::Response(response) => match pending_reqs.remove(&serde_json::from_value(response.id.clone()).unwrap_or_default()) {
-                                        None => warn!("received response with unknown id, ignoring"),
+                                        None => {
+                                            warn!("received response with unknown id, ignoring {:?}", response)
+                                        },
                                         Some(trx) => {
                                             let result = match Response::from_jsonrpc_message(response.into(), &trx.request) {
                                                 Ok(response) => match response {

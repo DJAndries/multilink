@@ -23,7 +23,7 @@ use tower::{timeout::Timeout, Service};
 use tracing::error;
 
 use crate::{
-    jsonrpc::{JsonRpcMessage, JsonRpcNotification},
+    jsonrpc::{JsonRpcMessage, JsonRpcNotification, JsonRpcResponse},
     service::{NotificationStream, ServiceError, ServiceFuture, ServiceResponse},
     ProtocolError, DEFAULT_TIMEOUT_SECS,
 };
@@ -173,11 +173,8 @@ where
             match result {
                 Ok(response) => match response {
                     ServiceResponse::Single(response) => {
-                        Self::output_message(
-                            stdout.as_ref(),
-                            Response::into_jsonrpc_message(Ok(response), id.into()),
-                        )
-                        .await;
+                        let message = Response::into_jsonrpc_message(response, id.into());
+                        Self::output_message(stdout.as_ref(), message).await;
                     }
                     ServiceResponse::Multiple(stream) => {
                         notification_streams_tx
@@ -192,7 +189,7 @@ where
                 Err(e) => {
                     Self::output_message(
                         stdout.as_ref(),
-                        Response::into_jsonrpc_message(Err(e.into()), id.into()),
+                        JsonRpcResponse::new(Err(e.into()), id.into()).into(),
                     )
                     .await
                 }
@@ -224,7 +221,12 @@ where
                     let id_notification = id_notification.unwrap();
                     match id_notification.result {
                         Some(result) => {
-                            Self::output_message(self.stdout.as_ref(), Response::into_jsonrpc_message(result.map_err(|e| e.into()), id_notification.id.into())).await;
+                            let id = id_notification.id.into();
+                            let message = match result {
+                                Ok(response) => Response::into_jsonrpc_message(response, id).into(),
+                                Err(e) => JsonRpcNotification::new_with_result_params(Err(e), id.to_string()).into()
+                            };
+                            Self::output_message(self.stdout.as_ref(), message).await;
                         },
                         None => {
                             Self::output_message(self.stdout.as_ref(), JsonRpcNotification::new(id_notification.id.to_string(), None).into()).await;
