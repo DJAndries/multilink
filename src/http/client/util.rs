@@ -15,8 +15,7 @@ use crate::{
         generic_error, HttpNotificationPayload, ModalHttpResponse, ResponseHttpConvert,
         SSE_DATA_PREFIX,
     },
-    service::{NotificationStream, ServiceError, ServiceResponse},
-    ProtocolError,
+    NotificationStream, ProtocolError, ServiceError, ServiceResponse,
 };
 
 pub async fn parse_response<T: DeserializeOwned>(

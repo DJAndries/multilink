@@ -8,8 +8,7 @@ use serde::{de::DeserializeOwned, Serialize};
 use crate::{
     error::ProtocolErrorType,
     http::{generic_error, HttpNotificationPayload, ModalHttpResponse, ResponseHttpConvert},
-    service::{NotificationStream, ServiceResponse},
-    ProtocolError,
+    NotificationStream, ProtocolError, ServiceResponse,
 };
 
 pub async fn parse_request<T: DeserializeOwned>(

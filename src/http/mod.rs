@@ -8,8 +8,7 @@ use thiserror::Error;
 
 use crate::{
     error::{ProtocolErrorType, SerializableProtocolError},
-    service::ServiceResponse,
-    ProtocolError,
+    ProtocolError, ServiceResponse,
 };
 
 #[cfg(any(feature = "http-client"))]

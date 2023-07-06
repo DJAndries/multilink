@@ -1,3 +1,5 @@
+mod comm;
+
 use std::{
     marker::PhantomData,
     pin::Pin,
@@ -11,21 +13,18 @@ use futures::{
     Stream, StreamExt,
 };
 use serde::{Deserialize, Serialize};
-use serde_json::Value;
 use tokio::{
-    io::{stdin, stdout, AsyncBufReadExt, AsyncWriteExt, BufReader, Stdin, Stdout},
+    io::{stdin, stdout, AsyncBufReadExt, BufReader, Stdin, Stdout},
     sync::{
         mpsc::{self, UnboundedSender},
         Mutex,
     },
 };
 use tower::{timeout::Timeout, Service};
-use tracing::error;
 
 use crate::{
-    jsonrpc::{JsonRpcMessage, JsonRpcNotification, JsonRpcResponse},
-    service::{NotificationStream, ServiceError, ServiceFuture, ServiceResponse},
-    ProtocolError, DEFAULT_TIMEOUT_SECS,
+    NotificationStream, ProtocolError, ServiceError, ServiceFuture, ServiceResponse,
+    DEFAULT_TIMEOUT_SECS,
 };
 
 use super::{serialize_payload, RequestJsonRpcConvert, ResponseJsonRpcConvert};
@@ -122,81 +121,6 @@ where
         }
     }
 
-    async fn output_message(stdout: &Mutex<Stdout>, message: JsonRpcMessage) {
-        let serialized_message = serialize_payload(&message);
-        stdout
-            .lock()
-            .await
-            .write_all(serialized_message.as_bytes())
-            .await
-            .ok();
-    }
-
-    fn handle_request(&mut self, serialized_request: String) {
-        let stdout = self.stdout.clone();
-        let notification_streams_tx = self
-            .notification_streams_tx
-            .clone()
-            .expect("notfication_streams_tx should be initialized");
-
-        let value: Value = serde_json::from_str(&serialized_request).unwrap_or_default();
-        let (result_future, id) = match JsonRpcMessage::try_from(value) {
-            Err(e) => {
-                error!("could not parse json rpc message from client: {e}, request: {serialized_request}");
-                return;
-            }
-            Ok(message) => match message {
-                JsonRpcMessage::Request(jsonrpc_request) => {
-                    let id = jsonrpc_request.id.as_u64().unwrap_or_default();
-                    match Request::from_jsonrpc_request(jsonrpc_request) {
-                        Err(e) => {
-                            error!("could not derive request enum from json rpc request: {e}");
-                            return;
-                        }
-                        Ok(request) => match request {
-                            None => {
-                                error!("unknown json rpc request received");
-                                return;
-                            }
-                            Some(request) => (self.service.call(request), id),
-                        },
-                    }
-                }
-                _ => {
-                    error!("ignoring non-request json rpc message from client");
-                    return;
-                }
-            },
-        };
-        tokio::spawn(async move {
-            let result = result_future.await;
-            match result {
-                Ok(response) => match response {
-                    ServiceResponse::Single(response) => {
-                        let message = Response::into_jsonrpc_message(response, id.into());
-                        Self::output_message(stdout.as_ref(), message).await;
-                    }
-                    ServiceResponse::Multiple(stream) => {
-                        notification_streams_tx
-                            .send(ServerNotificationLink {
-                                id,
-                                stream,
-                                is_complete: false,
-                            })
-                            .ok();
-                    }
-                },
-                Err(e) => {
-                    Self::output_message(
-                        stdout.as_ref(),
-                        JsonRpcResponse::new(Err(e.into()), id.into()).into(),
-                    )
-                    .await
-                }
-            }
-        });
-    }
-
     pub async fn run(mut self) -> std::io::Result<()> {
         // insert dummy notification stream so that tokio::select (in main loop)
         // does not immediately return if no streams exist
@@ -208,6 +132,7 @@ where
                 stream: pending().boxed(),
                 is_complete: false,
             }]);
+
         loop {
             let mut serialized_request = String::new();
             tokio::select! {
@@ -218,20 +143,7 @@ where
                     self.handle_request(serialized_request);
                 },
                 id_notification = notification_streams.next() => {
-                    let id_notification = id_notification.unwrap();
-                    match id_notification.result {
-                        Some(result) => {
-                            let id = id_notification.id.into();
-                            let message = match result {
-                                Ok(response) => Response::into_jsonrpc_message(response, id).into(),
-                                Err(e) => JsonRpcNotification::new_with_result_params(Err(e), id.to_string()).into()
-                            };
-                            Self::output_message(self.stdout.as_ref(), message).await;
-                        },
-                        None => {
-                            Self::output_message(self.stdout.as_ref(), JsonRpcNotification::new(id_notification.id.to_string(), None).into()).await;
-                        }
-                    }
+                    self.handle_notification(id_notification.unwrap()).await;
                 }
                 stream = notification_stream_rx.recv() => {
                     notification_streams.push(stream.unwrap());

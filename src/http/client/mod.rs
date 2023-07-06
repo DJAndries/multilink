@@ -20,8 +20,7 @@ use tower::{timeout::Timeout, Service};
 
 use crate::{
     error::{ProtocolError, ProtocolErrorType},
-    service::{ServiceError, ServiceFuture, ServiceResponse},
-    DEFAULT_TIMEOUT_SECS,
+    ServiceError, ServiceFuture, ServiceResponse, DEFAULT_TIMEOUT_SECS,
 };
 
 use self::util::parse_response;
