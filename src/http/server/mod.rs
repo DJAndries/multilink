@@ -18,7 +18,8 @@ use tracing::info;
 use crate::{
     error::ProtocolErrorType,
     http::{server::conn::HttpServerConnService, API_KEY_HEADER},
-    ProtocolError, ServiceError, ServiceFuture, ServiceResponse, DEFAULT_TIMEOUT_SECS,
+    ConfigExampleSnippet, ProtocolError, ServiceError, ServiceFuture, ServiceResponse,
+    DEFAULT_TIMEOUT_SECS,
 };
 
 use self::util::serialize_to_http_response;
@@ -34,6 +35,20 @@ pub struct HttpServerConfig {
     pub port: u16,
     pub api_keys: HashSet<String>,
     pub service_timeout_secs: u64,
+}
+
+impl ConfigExampleSnippet for HttpServerConfig {
+    fn config_example_snippet() -> String {
+        r#"# The port number on which the server listens.
+# port = 8080
+
+# The API keys allowed to access the server.
+# api_keys = ["key1", "key2", "key3"]
+
+# The timeout duration in seconds for the underlying backend service.
+# service_timeout_secs = 60"#
+            .into()
+    }
 }
 
 impl Default for HttpServerConfig {

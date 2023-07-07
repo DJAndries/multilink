@@ -20,7 +20,7 @@ use tower::{timeout::Timeout, Service};
 
 use crate::{
     error::{ProtocolError, ProtocolErrorType},
-    ServiceError, ServiceFuture, ServiceResponse, DEFAULT_TIMEOUT_SECS,
+    ConfigExampleSnippet, ServiceError, ServiceFuture, ServiceResponse, DEFAULT_TIMEOUT_SECS,
 };
 
 use self::util::parse_response;
@@ -36,6 +36,21 @@ pub struct HttpClientConfig {
     pub base_url: String,
     pub api_key: Option<String>,
     pub timeout_secs: u64,
+}
+
+impl ConfigExampleSnippet for HttpClientConfig {
+    fn config_example_snippet() -> String {
+        r#"# The base URL for the HttpClient.
+# base_url = "https://example.com"
+
+# The API key for authenticating requests made by the HttpClient (optional).
+# This field can be omitted if an API key is not required.
+# api_key = "YOUR_API_KEY"
+
+# The timeout duration in seconds for the HttpClient.
+# timeout_secs = 60"#
+            .into()
+    }
 }
 
 impl Default for HttpClientConfig {

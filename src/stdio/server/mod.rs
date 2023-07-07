@@ -23,8 +23,8 @@ use tokio::{
 use tower::{timeout::Timeout, Service};
 
 use crate::{
-    NotificationStream, ProtocolError, ServiceError, ServiceFuture, ServiceResponse,
-    DEFAULT_TIMEOUT_SECS,
+    ConfigExampleSnippet, NotificationStream, ProtocolError, ServiceError, ServiceFuture,
+    ServiceResponse, DEFAULT_TIMEOUT_SECS,
 };
 
 use super::{serialize_payload, RequestJsonRpcConvert, ResponseJsonRpcConvert};
@@ -33,6 +33,14 @@ use super::{serialize_payload, RequestJsonRpcConvert, ResponseJsonRpcConvert};
 #[serde(default)]
 pub struct StdioServerConfig {
     pub service_timeout_secs: u64,
+}
+
+impl ConfigExampleSnippet for StdioServerConfig {
+    fn config_example_snippet() -> String {
+        r#"# The timeout duration in seconds for the underlying backend service.
+# service_timeout_secs = 60"#
+            .into()
+    }
 }
 
 impl Default for StdioServerConfig {

@@ -18,8 +18,9 @@ use tower::Service;
 const DEFAULT_TIMEOUT_SECS: u64 = 900;
 
 pub trait ConfigExampleSnippet {
-    fn config_example_snippet() -> &'static str;
+    fn config_example_snippet() -> String;
 }
+
 pub type NotificationStream<Response> =
     Pin<Box<dyn Stream<Item = Result<Response, ProtocolError>> + Send>>;
 

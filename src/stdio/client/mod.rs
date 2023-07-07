@@ -19,7 +19,8 @@ use tower::Service;
 
 use crate::{
     error::{ProtocolErrorType, SerializableProtocolError},
-    ProtocolError, ServiceError, ServiceFuture, ServiceResponse, DEFAULT_TIMEOUT_SECS,
+    ConfigExampleSnippet, ProtocolError, ServiceError, ServiceFuture, ServiceResponse,
+    DEFAULT_TIMEOUT_SECS,
 };
 
 use self::comm::StdioClientCommTask;
@@ -31,6 +32,17 @@ use super::{serialize_payload, RequestJsonRpcConvert, ResponseJsonRpcConvert};
 pub struct StdioClientConfig {
     pub bin_path: Option<String>,
     pub timeout_secs: u64,
+}
+
+impl ConfigExampleSnippet for StdioClientConfig {
+    fn config_example_snippet() -> String {
+        r#"# Path containing all llmvm binaries, defaults to $PATH
+# bin_path = ""
+
+# The timeout duration in seconds for requests, defaults to 900
+# timeout_secs = 60"#
+            .into()
+    }
 }
 
 impl Default for StdioClientConfig {
