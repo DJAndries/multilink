@@ -18,14 +18,13 @@ use tokio::{
 use tower::Service;
 
 use crate::{
-    error::{ProtocolErrorType, SerializableProtocolError},
     ConfigExampleSnippet, ProtocolError, ServiceError, ServiceFuture, ServiceResponse,
     DEFAULT_TIMEOUT_SECS,
 };
 
 use self::comm::StdioClientCommTask;
 
-use super::{serialize_payload, RequestJsonRpcConvert, ResponseJsonRpcConvert};
+use super::{serialize_payload, RequestJsonRpcConvert, ResponseJsonRpcConvert, StdioError};
 
 #[derive(Clone, Serialize, Deserialize)]
 #[serde(default)]
@@ -60,7 +59,7 @@ where
     Response: ResponseJsonRpcConvert<Request, Response> + Send,
 {
     request: Request,
-    response_tx: oneshot::Sender<Result<ServiceResponse<Response>, SerializableProtocolError>>,
+    response_tx: oneshot::Sender<Result<ServiceResponse<Response>, ProtocolError>>,
 }
 
 struct ClientNotificationLink<Request, Response> {
@@ -102,21 +101,11 @@ where
                     request,
                     response_tx,
                 })
-                .map_err(|_| SerializableProtocolError {
-                    error_type: ProtocolErrorType::Internal,
-                    description: "should be able to send stdio request to comm task".to_string(),
-                })?;
-            let response_result = timeout(timeout_duration, response_rx).await.map_err(|_| {
-                SerializableProtocolError {
-                    error_type: ProtocolErrorType::Internal,
-                    description: "timed out".to_string(),
-                }
-            })?;
-            Ok(response_result.map_err(|_| SerializableProtocolError {
-                error_type: ProtocolErrorType::Internal,
-                description: "should be able to recv response for stdio request from comm task"
-                    .to_string(),
-            })??)
+                .map_err(|_| StdioError::SendRequestCommTask)?;
+            let response_result = timeout(timeout_duration, response_rx)
+                .await
+                .map_err(|_| StdioError::Timeout)?;
+            Ok(response_result.map_err(|_| StdioError::RecvResponseCommTask)??)
         })
     }
 }

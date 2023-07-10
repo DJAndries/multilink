@@ -11,9 +11,9 @@ use tokio_stream::wrappers::UnboundedReceiverStream;
 use tracing::{error, warn};
 
 use crate::{
-    error::{ProtocolErrorType, SerializableProtocolError},
     jsonrpc::{JsonRpcMessage, JsonRpcNotification, JsonRpcRequest, JsonRpcResponse},
-    ProtocolError, ServiceResponse,
+    stdio::StdioError,
+    ServiceResponse,
 };
 
 use super::{
@@ -75,17 +75,8 @@ where
 
     async fn handle_incoming_request(&mut self, request: JsonRpcRequest) {
         self.output_message(
-            JsonRpcResponse::new(
-                Err(ProtocolError {
-                    error_type: ProtocolErrorType::BadRequest,
-                    error: Box::new(SerializableProtocolError {
-                        error_type: ProtocolErrorType::BadRequest,
-                        description: "client does not support serving requests".to_string(),
-                    }),
-                }),
-                request.id,
-            )
-            .into(),
+            JsonRpcResponse::new(Err(StdioError::ClientRequestUnsupported.into()), request.id)
+                .into(),
         )
         .await
     }
