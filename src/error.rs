@@ -2,6 +2,7 @@ use std::error::Error;
 
 use serde::{Deserialize, Serialize};
 
+/// The error type of the [`ProtocolError`].
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub enum ProtocolErrorType {
     NotFound,
@@ -11,6 +12,8 @@ pub enum ProtocolErrorType {
     Internal,
 }
 
+/// A "one size fits all" error type for the protocol.
+/// Contains a boxed error, and the error type.
 #[derive(Debug, thiserror::Error)]
 #[error("{error}")]
 pub struct ProtocolError {
@@ -37,6 +40,8 @@ impl From<Box<dyn Error + Send + Sync + 'static>> for ProtocolError {
     }
 }
 
+/// A serializable variant of the protocol error.
+/// Contains a description of the error and the error type.
 #[derive(Clone, Debug, thiserror::Error, Serialize, Deserialize)]
 #[error("{description}")]
 pub struct SerializableProtocolError {

@@ -17,6 +17,11 @@ tokio-stream = "0.1"
 tower = { version = "0.4", features = ["timeout"] }
 tracing = "0.1"
 
+[dev-dependencies]
+clap = { version = "4.3", features = ["derive"] }
+tokio = { version = "1.27", features = ["rt-multi-thread"] }
+tracing-subscriber = { version = "0.3", features = ["env-filter"] }
+
 [features]
 jsonrpc = []
 stdio-client = ["dep:tokio", "jsonrpc"]
@@ -24,3 +29,10 @@ stdio-server = ["dep:tokio", "jsonrpc"]
 http-client = ["dep:hyper", "hyper?/client", "dep:hyper-rustls"]
 http-server = ["dep:hyper", "hyper?/server", "hyper?/tcp"]
 
+[[example]]
+name = "greeting-client"
+required-features = ["http-client", "stdio-client"]
+
+[[example]]
+name = "greeting-server"
+required-features = ["http-server", "stdio-server"]

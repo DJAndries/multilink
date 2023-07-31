@@ -1,5 +1,4 @@
 mod conn;
-pub mod util;
 
 use std::{
     collections::HashSet, convert::Infallible, marker::PhantomData, net::SocketAddr, sync::Arc,
@@ -8,32 +7,33 @@ use std::{
 
 use hyper::{
     server::conn::AddrStream, service::make_service_fn, Body, Response as HttpResponse, Server,
-    StatusCode,
 };
 use serde::{Deserialize, Serialize};
-use serde_json::Value;
 use tower::{timeout::Timeout, Service};
 use tracing::info;
 
 use crate::{
-    error::ProtocolErrorType,
     http::{server::conn::HttpServerConnService, API_KEY_HEADER},
     ConfigExampleSnippet, ProtocolError, ServiceError, ServiceFuture, ServiceResponse,
     DEFAULT_TIMEOUT_SECS,
 };
 
-use self::util::serialize_to_http_response;
+use super::util::serialize_to_http_response;
 
 use super::{
-    generic_error, HttpNotificationPayload, ModalHttpResponse, ProtocolHttpError,
-    RequestHttpConvert, ResponseHttpConvert,
+    generic_error, ModalHttpResponse, ProtocolHttpError, RequestHttpConvert, ResponseHttpConvert,
 };
 
+/// Configuration for the HTTP server.
 #[derive(Clone, Serialize, Deserialize)]
 #[serde(default)]
 pub struct HttpServerConfig {
+    /// Port to listen on.
     pub port: u16,
+    /// An optional set of API keys for restricting access to the server.
+    /// If omitted, an API key is not needed to make a request.
     pub api_keys: HashSet<String>,
+    /// Timeout for service requests in seconds.
     pub service_timeout_secs: u64,
 }
 
@@ -42,7 +42,8 @@ impl ConfigExampleSnippet for HttpServerConfig {
         r#"# The port number on which the server listens.
 # port = 8080
 
-# The API keys allowed to access the server.
+# The API keys allowed to access the server. If omitted, an API key is not
+# needed to make a request.
 # api_keys = ["key1", "key2", "key3"]
 
 # The timeout duration in seconds for the underlying backend service.
@@ -61,30 +62,6 @@ impl Default for HttpServerConfig {
     }
 }
 
-impl Into<StatusCode> for ProtocolErrorType {
-    fn into(self) -> StatusCode {
-        match self {
-            ProtocolErrorType::BadRequest => StatusCode::BAD_REQUEST,
-            ProtocolErrorType::Unauthorized => StatusCode::UNAUTHORIZED,
-            ProtocolErrorType::Internal => StatusCode::INTERNAL_SERVER_ERROR,
-            ProtocolErrorType::NotFound => StatusCode::NOT_FOUND,
-            ProtocolErrorType::HttpMethodNotAllowed => StatusCode::METHOD_NOT_ALLOWED,
-        }
-    }
-}
-
-impl From<Result<Option<Value>, ProtocolError>> for HttpNotificationPayload {
-    fn from(result: Result<Option<Value>, ProtocolError>) -> Self {
-        let result =
-            result.and_then(|r| r.ok_or_else(|| generic_error(ProtocolErrorType::NotFound)));
-        let (result, error) = match result {
-            Ok(result) => (Some(result), None),
-            Err(e) => (None, Some(e.into())),
-        };
-        Self { result, error }
-    }
-}
-
 impl Into<HttpResponse<Body>> for ProtocolError {
     fn into(self) -> HttpResponse<Body> {
         let payload = ProtocolHttpError {
@@ -95,6 +72,7 @@ impl Into<HttpResponse<Body>> for ProtocolError {
     }
 }
 
+/// Server for HTTP communication with remote clients.
 pub struct HttpServer<Request, Response, S>
 where
     Request: RequestHttpConvert<Request> + Clone + Send,
@@ -116,30 +94,6 @@ where
 
 impl<Request, Response, S> HttpServer<Request, Response, S>
 where
-    Request: RequestHttpConvert<Request> + Send + Clone,
-    Response: ResponseHttpConvert<Request, Response>,
-    S: Service<
-            Request,
-            Response = ServiceResponse<Response>,
-            Error = ServiceError,
-            Future = ServiceFuture<ServiceResponse<Response>>,
-        > + Send
-        + Clone
-        + 'static,
-{
-    pub fn new(service: S, config: HttpServerConfig) -> Self {
-        let service = Timeout::new(service, Duration::from_secs(config.service_timeout_secs));
-        Self {
-            config: Arc::new(config),
-            service,
-            request_phantom: Default::default(),
-            response_phantom: Default::default(),
-        }
-    }
-}
-
-impl<Request, Response, S> HttpServer<Request, Response, S>
-where
     Request: RequestHttpConvert<Request> + Clone + Send + 'static,
     Response: ResponseHttpConvert<Request, Response> + Send + 'static,
     S: Service<
@@ -151,6 +105,20 @@ where
         + Clone
         + 'static,
 {
+    /// Creates a new client for HTTP communication. Client requests will be
+    /// converted and forwarded to the `service`.
+    pub fn new(service: S, config: HttpServerConfig) -> Self {
+        let service = Timeout::new(service, Duration::from_secs(config.service_timeout_secs));
+        Self {
+            config: Arc::new(config),
+            service,
+            request_phantom: Default::default(),
+            response_phantom: Default::default(),
+        }
+    }
+
+    /// Listens & processes requests from remote clients, until a [`hyper::Error`]
+    /// is encountered.
     pub async fn run(self) -> Result<(), hyper::Error> {
         let config_cl = self.config.clone();
         let service_cl = self.service.clone();
@@ -160,7 +128,7 @@ where
             let remote_addr = conn.remote_addr();
             async move { Ok::<_, Infallible>(HttpServerConnService::new(config, service, remote_addr)) }
         });
-        let addr = SocketAddr::from(([127, 0, 0, 1], self.config.port));
+        let addr = SocketAddr::from(([0, 0, 0, 0], self.config.port));
 
         let server = Server::try_bind(&addr)?;
 

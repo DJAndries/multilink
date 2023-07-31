@@ -29,9 +29,11 @@ use crate::{
 
 use super::{serialize_payload, RequestJsonRpcConvert, ResponseJsonRpcConvert};
 
+/// Configuration for the stdio server.
 #[derive(Clone, Serialize, Deserialize)]
 #[serde(default)]
 pub struct StdioServerConfig {
+    /// Timeout for service requests in seconds.
     pub service_timeout_secs: u64,
 }
 
@@ -56,6 +58,7 @@ struct IdentifiedNotification<Response> {
     result: Option<Result<Response, ProtocolError>>,
 }
 
+/// Server for stdio communication via a parent process.
 pub struct StdioServer<Request, Response, S>
 where
     Request: RequestJsonRpcConvert<Request> + Send,
@@ -119,6 +122,8 @@ where
         > + Send
         + 'static,
 {
+    /// Creates a new server for stdio communication. Client requests will be
+    /// converted and forwarded to the `service`.
     pub fn new(service: S, config: StdioServerConfig) -> Self {
         Self {
             service: Timeout::new(service, Duration::from_secs(config.service_timeout_secs)),
@@ -129,6 +134,8 @@ where
         }
     }
 
+    /// Listens & processes requests from the parent process via stdin, until a [`std::io::Error`]
+    /// is encountered.
     pub async fn run(mut self) -> std::io::Result<()> {
         // insert dummy notification stream so that tokio::select (in main loop)
         // does not immediately return if no streams exist

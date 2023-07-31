@@ -4,10 +4,14 @@ use serde_json::Value;
 use crate::error::{ProtocolErrorType, SerializableProtocolError};
 use crate::ProtocolError;
 
+/// The id field name used by the request and response.
 pub const ID_KEY: &str = "id";
+/// The method field name used by the request and notification.
 pub const METHOD_KEY: &str = "method";
-const JSON_RPC_VERSION: &str = "2.0";
+/// The version of JSON-RPC used by this crate.
+pub const JSON_RPC_VERSION: &str = "2.0";
 
+/// Data structure for a JSON-RPC request.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct JsonRpcRequest {
     #[serde(rename = "jsonrpc")]
@@ -17,6 +21,7 @@ pub struct JsonRpcRequest {
     pub id: Value,
 }
 
+/// Data structure for a JSON-RPC response.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct JsonRpcResponse {
     #[serde(rename = "jsonrpc")]
@@ -26,6 +31,7 @@ pub struct JsonRpcResponse {
     pub id: Value,
 }
 
+/// Data structure for a JSON-RPC notification.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct JsonRpcNotification {
     #[serde(rename = "jsonrpc")]
@@ -34,12 +40,15 @@ pub struct JsonRpcNotification {
     pub params: Option<Value>,
 }
 
+/// Parameters used to return a result and error
+/// for a notification.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct JsonRpcNotificationResultParams {
     pub result: Option<Value>,
     pub error: Option<JsonRpcResponseError>,
 }
 
+/// Data structure for the error in a JSON-RPC response.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct JsonRpcResponseError {
     pub code: i32,
@@ -47,6 +56,7 @@ pub struct JsonRpcResponseError {
     pub data: Option<Value>,
 }
 
+/// A subset of JSON-RPC error codes.
 #[derive(Clone, PartialEq, Debug)]
 #[repr(i32)]
 pub enum JsonRpcErrorCode {
@@ -93,6 +103,7 @@ impl Into<ProtocolErrorType> for JsonRpcErrorCode {
     }
 }
 
+/// All supported types of JSON-RPC messages.
 #[derive(Debug, Clone, Serialize)]
 #[serde(untagged)]
 pub enum JsonRpcMessage {
@@ -111,6 +122,8 @@ impl JsonRpcRequest {
         }
     }
 
+    /// Parses request parameters into `R`. Returns a "bad request" protocol error,
+    /// if deserialization fails.
     pub fn parse_params<R: DeserializeOwned>(self) -> Result<R, SerializableProtocolError> {
         let params = self.params.ok_or_else(|| SerializableProtocolError {
             error_type: ProtocolErrorType::BadRequest,
@@ -151,6 +164,8 @@ impl JsonRpcResponse {
         }
     }
 
+    /// Evaluates `result` and `error` from the response and returns
+    /// a `Result`.
     pub fn get_result(self) -> Result<Value, SerializableProtocolError> {
         if let Some(error) = self.error {
             let jsonrpc_error_type = JsonRpcErrorCode::from(error.code);
@@ -172,6 +187,9 @@ impl JsonRpcNotification {
         }
     }
 
+    /// Creates a notification for a given result.
+    /// The `result` argument will be serialized into [`JsonRpcNotificationResultParams`],
+    /// which will be used as the value for the `params` field in the notification.
     pub fn new_with_result_params(result: Result<Value, ProtocolError>, method: String) -> Self {
         JsonRpcNotification {
             jsonrpc_version: JSON_RPC_VERSION.to_string(),
@@ -180,6 +198,9 @@ impl JsonRpcNotification {
         }
     }
 
+    /// Retrieves a `Result` from a given notification.
+    /// The `params` notification value must be a [`JsonRpcNotificationResultParams`].
+    /// Returns [`Value::Null`] if the result cannot be deserialized, or if the value is not present.
     pub fn get_result(self) -> Result<Value, SerializableProtocolError> {
         let params: JsonRpcNotificationResultParams = serde_json::from_value(
             self.params.unwrap_or(Value::Null),

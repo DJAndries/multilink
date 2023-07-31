@@ -26,10 +26,14 @@ use self::comm::StdioClientCommTask;
 
 use super::{serialize_payload, RequestJsonRpcConvert, ResponseJsonRpcConvert, StdioError};
 
+/// Configuration for the stdio client.
 #[derive(Clone, Serialize, Deserialize)]
 #[serde(default)]
 pub struct StdioClientConfig {
+    /// Optional binary path for spawning child processes.
+    /// Defaults to PATH.
     pub bin_path: Option<String>,
+    /// Timeout for client requests in seconds.
     pub timeout_secs: u64,
 }
 
@@ -67,6 +71,8 @@ struct ClientNotificationLink<Request, Response> {
     notification_tx: UnboundedSender<Result<Response, ProtocolError>>,
 }
 
+/// Client for stdio communication via a child process.
+/// If cloned, this client will continue to communicate with the same child process.
 #[derive(Clone)]
 pub struct StdioClient<Request, Response>
 where
@@ -115,6 +121,8 @@ where
     Request: RequestJsonRpcConvert<Request> + Send + 'static,
     Response: ResponseJsonRpcConvert<Request, Response> + Send + 'static,
 {
+    /// Creates a new client for stdio communication. A new child process will be
+    /// spawned, and a [`std::io::Error`] will be returned if spawning fails.
     pub async fn new(
         program: &str,
         args: &[&str],

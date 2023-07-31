@@ -1,5 +1,3 @@
-pub mod util;
-
 use std::{
     marker::PhantomData,
     str::FromStr,
@@ -11,11 +9,10 @@ use std::{
 use hyper::{
     client::HttpConnector,
     http::{uri::InvalidUri, HeaderValue},
-    Client, StatusCode, Uri,
+    Client, Uri,
 };
 use hyper_rustls::HttpsConnector;
 use serde::{Deserialize, Serialize};
-use serde_json::Value;
 use tower::{timeout::Timeout, Service};
 
 use crate::{
@@ -23,18 +20,23 @@ use crate::{
     ConfigExampleSnippet, ServiceError, ServiceFuture, ServiceResponse, DEFAULT_TIMEOUT_SECS,
 };
 
-use self::util::parse_response;
+use super::util::parse_response;
 
 use super::{
-    generic_error, HttpNotificationPayload, ModalHttpResponse, ProtocolHttpError,
-    RequestHttpConvert, ResponseHttpConvert, API_KEY_HEADER,
+    generic_error, ModalHttpResponse, ProtocolHttpError, RequestHttpConvert, ResponseHttpConvert,
+    API_KEY_HEADER,
 };
 
+/// Configuration for the HTTP client.
 #[derive(Clone, Serialize, Deserialize)]
 #[serde(default)]
 pub struct HttpClientConfig {
+    /// Base URL/prefix for all outgoing requests.
     pub base_url: String,
+    /// API key to append to requests.
+    /// The key will be inserted into the `X-API-Key` header.
     pub api_key: Option<String>,
+    /// Timeout for client requests in seconds.
     pub timeout_secs: u64,
 }
 
@@ -63,29 +65,7 @@ impl Default for HttpClientConfig {
     }
 }
 
-impl From<StatusCode> for ProtocolErrorType {
-    fn from(code: StatusCode) -> Self {
-        match code {
-            StatusCode::BAD_REQUEST => ProtocolErrorType::BadRequest,
-            StatusCode::UNAUTHORIZED => ProtocolErrorType::Unauthorized,
-            StatusCode::INTERNAL_SERVER_ERROR => ProtocolErrorType::Internal,
-            StatusCode::NOT_FOUND => ProtocolErrorType::NotFound,
-            StatusCode::METHOD_NOT_ALLOWED => ProtocolErrorType::HttpMethodNotAllowed,
-            _ => ProtocolErrorType::Internal,
-        }
-    }
-}
-
-impl Into<Result<Value, ProtocolError>> for HttpNotificationPayload {
-    fn into(self) -> Result<Value, ProtocolError> {
-        if let Some(e) = self.error {
-            return Err(e.into());
-        }
-        self.result
-            .ok_or_else(|| generic_error(ProtocolErrorType::NotFound))
-    }
-}
-
+/// Client for HTTP communication with a remote host.
 #[derive(Clone)]
 pub struct HttpClient<Request, Response>
 where
@@ -104,6 +84,8 @@ where
     Request: RequestHttpConvert<Request> + Clone + Send + 'static,
     Response: ResponseHttpConvert<Request, Response> + Send + 'static,
 {
+    /// Creates a new client for HTTP communication. An [`InvalidUri`]
+    /// error will be returned if the base URL in the configuration is invalid.
     pub fn new(config: HttpClientConfig) -> Result<Self, InvalidUri> {
         let https = hyper_rustls::HttpsConnectorBuilder::new()
             .with_native_roots()

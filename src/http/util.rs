@@ -4,7 +4,7 @@ use async_stream::stream;
 use futures::StreamExt;
 use hyper::{
     body::to_bytes, header::CONTENT_TYPE, Body, Method, Request as HttpRequest,
-    Response as HttpResponse, Uri,
+    Response as HttpResponse, StatusCode, Uri,
 };
 use serde::{de::DeserializeOwned, Serialize};
 use serde_json::Value;
@@ -18,6 +18,10 @@ use crate::{
     NotificationStream, ProtocolError, ServiceError, ServiceResponse,
 };
 
+/// Deserializes the body of [`HttpResponse<Body>`] into `T`.
+/// Returns a "bad request" error if JSON deserialization fails,
+/// and returns an "internal" error if raw data retrieval from the request fails.
+/// Can be useful for implementing [`ResponseHttpConvert::from_http_response`].
 pub async fn parse_response<T: DeserializeOwned>(
     response: HttpResponse<Body>,
 ) -> Result<T, ProtocolError> {
@@ -32,6 +36,9 @@ fn parse_response_payload<T: DeserializeOwned>(response: &[u8]) -> Result<T, Pro
         .map_err(|e| ProtocolError::new(ProtocolErrorType::BadRequest, Box::new(e)))
 }
 
+/// Serializes `T` into [`HttpRequest<Body>`]. Returns an "internal" error if
+/// JSON serialization fails. Can be useful for
+/// implementing [`RequestHttpConvert::to_http_request`](crate::http::RequestHttpConvert::to_http_request).
 pub fn serialize_to_http_request<T: Serialize>(
     base_url: &Uri,
     path: &str,
@@ -64,6 +71,9 @@ pub fn serialize_to_http_request<T: Serialize>(
         .expect("should be able to create http request"))
 }
 
+/// Converts an [`HttpResponse<Body>`] to a [`NotificationStream<Response>`] so
+/// server-side events can be consumed by the HTTP client. Can be useful for implementing
+/// [`ResponseHttpConvert::from_http_response`].
 pub fn notification_sse_stream<Request, Response>(
     original_request: Request,
     http_response: HttpResponse<Body>,
@@ -110,4 +120,76 @@ where
             }
         }
     }.boxed()
+}
+
+/// Deserializes the body of [`HttpRequest<Body>`] into `T`.
+/// Returns a "bad request" error if JSON deserialization fails,
+/// and returns an "internal" error if raw data retrieval from the request fails.
+/// Can be useful for implementing [`RequestHttpConvert::from_http_request`](crate::http::RequestHttpConvert::from_http_request).
+pub async fn parse_request<T: DeserializeOwned>(
+    request: HttpRequest<Body>,
+) -> Result<T, ProtocolError> {
+    let bytes = to_bytes(request)
+        .await
+        .map_err(|e| ProtocolError::new(ProtocolErrorType::Internal, Box::new(e)))?;
+    serde_json::from_slice(bytes.as_ref())
+        .map_err(|e| ProtocolError::new(ProtocolErrorType::BadRequest, Box::new(e)))
+}
+
+/// Compares the request method with an expected method and returns
+/// [`ProtocolErrorType::HttpMethodNotAllowed`] if there is a mismatch.
+/// Can be useful for implementing [`RequestHttpConvert::from_http_request`](crate::http::RequestHttpConvert::from_http_request).
+pub fn validate_method(
+    request: &HttpRequest<Body>,
+    expected_method: Method,
+) -> Result<(), ProtocolError> {
+    match request.method() == &expected_method {
+        true => Ok(()),
+        false => Err(generic_error(ProtocolErrorType::HttpMethodNotAllowed).into()),
+    }
+}
+
+fn serialize_response<T: Serialize>(response: &T) -> Result<Vec<u8>, ProtocolError> {
+    serde_json::to_vec(response)
+        .map_err(|e| ProtocolError::new(ProtocolErrorType::Internal, Box::new(e)))
+}
+
+/// Serializes `T` into [`HttpResponse<Body>`]. Returns an "internal" error if
+/// JSON serialization fails. Can be useful for
+/// implementing [`ResponseHttpConvert::to_http_response`].
+pub fn serialize_to_http_response<T: Serialize>(
+    response: &T,
+    status: StatusCode,
+) -> Result<HttpResponse<Body>, ProtocolError> {
+    let bytes = serialize_response(response)?;
+    Ok(HttpResponse::builder()
+        .header(CONTENT_TYPE, "application/json")
+        .status(status)
+        .body(bytes.into())
+        .expect("should be able to create http response"))
+}
+
+/// Converts a [`NotificationStream<Response>`] to an [`HttpResponse<Body>`] so
+/// server-side events can be produced by the HTTP server. Can be useful for implementing
+/// [`ResponseHttpConvert::to_http_response`].
+pub fn notification_sse_response<Request, Response>(
+    notification_stream: NotificationStream<Response>,
+) -> HttpResponse<Body>
+where
+    Request: Clone,
+    Response: ResponseHttpConvert<Request, Response> + 'static,
+{
+    let payload_stream = notification_stream.map(|result| {
+        let payload = HttpNotificationPayload::from(result.and_then(|response| {
+            Response::to_http_response(ServiceResponse::Single(response)).map(|opt| {
+                opt.and_then(|response| match response {
+                    ModalHttpResponse::Event(value) => Some(value),
+                    _ => None,
+                })
+            })
+        }));
+        let payload_str = serde_json::to_string(&payload)?;
+        Ok::<String, serde_json::Error>(format!("data: {}\n\n", payload_str))
+    });
+    HttpResponse::new(Body::wrap_stream(payload_stream))
 }

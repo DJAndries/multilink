@@ -1,8 +1,15 @@
+#[cfg(any(feature = "stdio-server", feature = "stdio-client"))]
 use serde::de::DeserializeOwned;
+#[cfg(any(feature = "stdio-server", feature = "stdio-client"))]
 use serde_json::Value;
 
+#[cfg(any(feature = "stdio-server", feature = "stdio-client"))]
 use crate::error::{ProtocolErrorType, SerializableProtocolError};
 
+/// Parses/deserializes a [`serde_json::Value`] into `R`. Returns
+/// a "bad request" protocol error if deserialization fails. Can be useful for
+/// parsing events when implementing [`ResponseJsonRpcConvert::from_jsonrpc_message`](crate::stdio::ResponseJsonRpcConvert::from_jsonrpc_message).
+#[cfg(any(feature = "stdio-server", feature = "stdio-client"))]
 pub fn parse_from_value<R: DeserializeOwned>(value: Value) -> Result<R, SerializableProtocolError> {
     serde_json::from_value::<R>(value).map_err(|error| SerializableProtocolError {
         error_type: ProtocolErrorType::BadRequest,
@@ -10,6 +17,7 @@ pub fn parse_from_value<R: DeserializeOwned>(value: Value) -> Result<R, Serializ
     })
 }
 
+/// Utility functions related to services.
 #[cfg(all(feature = "http-client", feature = "stdio-client"))]
 pub mod service {
     use crate::{
@@ -24,6 +32,11 @@ pub mod service {
         BoxedService, ServiceError,
     };
 
+    /// Creates a [`StdioClient`](crate::stdio::client::StdioClient) or
+    /// [`HttpClient`](crate::http::client::HttpClient) service depending
+    /// on the arguments provided. If `http_client_config` is `Some`, an
+    /// HTTP-based service will be created. If it is `None`, a stdio-based service
+    /// will be created.
     pub async fn build_service_from_config<Request, Response>(
         command_name: &str,
         command_arguments: &[&str],
