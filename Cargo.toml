@@ -1,7 +1,14 @@
 [package]
 name = "multilink"
-version = "0.1.0"
+version = "1.0.1"
+authors = ["Darnell Andries <darnell@andries.ca>"]
 edition = "2021"
+description = "IPC library for communicating with local or remote processes, over stdio or HTTP"
+repository = "https://github.com/djandries/multilink"
+license = "MPL-2.0"
+keywords = ["ipc", "http", "stdio", "jsonrpc"]
+categories = ["network-programming", "api-bindings", "data-structures"]
+exclude = ["misc/"]
 
 [dependencies]
 async-trait = "0.1"
@@ -28,6 +35,9 @@ stdio-client = ["dep:tokio", "jsonrpc"]
 stdio-server = ["dep:tokio", "jsonrpc"]
 http-client = ["dep:hyper", "hyper?/client", "dep:hyper-rustls"]
 http-server = ["dep:hyper", "hyper?/server", "hyper?/tcp"]
+
+[package.metadata.docs.rs]
+features = ["stdio-client", "stdio-server", "http-client", "http-server"]
 
 [[example]]
 name = "greeting-client"

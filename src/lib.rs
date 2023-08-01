@@ -4,6 +4,17 @@
 //! - Remote processes/HTTP: HTTP requests/responses are passed between processes on remote hosts
 //!
 //! Utilizes `tower` to handle RPC calls.
+//!
+//! ## Moving parts
+//!
+//! Here are the moving parts of a solution that uses multilink:
+//!
+//! 1. One set of protocol-agnostic request and response types: types that are used in all services, regardless of the underlying protocol; usually a set of enums
+//! 2. The handling services: processes the protocol-agnostic requests, performs some logic and returns responses
+//! 3. Conversion trait implementations: converts the protocol-agnostic requests/responses into JSON-RPC or HTTP request/responses
+//! 4. HTTP and "JSON-RPC over stdio" clients and servers: the only part implemented by multilink; brings the three items above together
+//!
+//! The caller of a multilink client will only use the protocol-agnostic request and response types, which allows seamless switching between protocols.
 
 /// Protocol error types.
 pub mod error;
