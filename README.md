@@ -1,6 +1,8 @@
 # multilink
 
-![Crates.io](https://img.shields.io/crates/v/multilink) ![docs.rs](https://img.shields.io/docsrs/multilink) ![GitHub](https://img.shields.io/github/license/djandries/multilink)
+[![Crates.io](https://img.shields.io/crates/v/multilink?style=for-the-badge)](https://crates.io/crates/multilink)
+[![docs.rs](https://img.shields.io/docsrs/multilink?style=for-the-badge)](https://docs.rs/multilink)
+[![GitHub](https://img.shields.io/github/license/djandries/multilink?style=for-the-badge)](https://github.com/DJAndries/multilink/blob/master/LICENSE)
 
 An IPC library that provides communication for both local and remote processes.
 Supports response streaming/events. Built on top of [tower](https://github.com/tower-rs/tower).
